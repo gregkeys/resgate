@@ -101,6 +101,11 @@ func (c *wsConn) listen() {
 	var in []byte
 	var err error
 
+	c.Enqueue(func() {
+		msg := []byte(fmt.Sprintf(`{"id":0,"method":"call.example.connection.up","params":{"cid":"%s","token":"%s"}}`, c.cid, c.token))
+		rpc.HandleRequest(msg, c)
+	})
+
 	// Loop until an error is returned when reading
 	for {
 		if _, in, err = c.ws.ReadMessage(); err != nil {
@@ -113,6 +118,11 @@ func (c *wsConn) listen() {
 			rpc.HandleRequest(in, c)
 		})
 	}
+
+	c.Enqueue(func() {
+		msg := []byte(fmt.Sprintf(`{"id":0,"method":"call.example.connection.down","params":{"cid":"%s","token":"%s"}}`, c.cid, c.token))
+		rpc.HandleRequest(msg, c)
+	})
 
 	c.Dispose()
 	c.Tracef("Disconnected: %s", err)
