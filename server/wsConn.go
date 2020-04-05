@@ -102,8 +102,7 @@ func (c *wsConn) listen() {
 	var err error
 
 	c.Enqueue(func() {
-		msg := []byte(fmt.Sprintf(`{"id":0,"method":"call.example.connection.up","params":{"cid":"%s","token":"%s"}}`, c.cid, c.token))
-		rpc.HandleRequest(msg, c)
+		c.SendConnectionStatus("up")
 	})
 
 	// Loop until an error is returned when reading
@@ -120,8 +119,7 @@ func (c *wsConn) listen() {
 	}
 
 	c.Enqueue(func() {
-		msg := []byte(fmt.Sprintf(`{"id":0,"method":"call.example.connection.down","params":{"cid":"%s","token":"%s"}}`, c.cid, c.token))
-		rpc.HandleRequest(msg, c)
+		c.SendConnectionStatus("down")
 	})
 
 	c.Dispose()
@@ -389,6 +387,15 @@ func (c *wsConn) call(rid, action string, params interface{}, cb func(result jso
 	})
 }
 
+func (c *wsConn) callNoReply(rid, action string, params interface{}) {
+	sub, ok := c.subs[rid]
+	if !ok {
+		sub = NewSubscription(c, rid)
+	}
+
+	c.serv.cache.Call(c, sub.ResourceName(), sub.ResourceQuery(), action, c.token, params, func(result json.RawMessage, refRID string, err error) {})
+}
+
 func (c *wsConn) AuthResource(rid, action string, params interface{}, cb func(result interface{}, err error)) {
 	rname, query := parseRID(c.ExpandCID(rid))
 	c.serv.cache.Auth(c, rname, query, action, c.token, params, func(result json.RawMessage, refRID string, err error) {
@@ -648,4 +655,8 @@ func (c *wsConn) handleConnToken(payload []byte) {
 
 func (c *wsConn) ExpandCID(rid string) string {
 	return strings.Replace(rid, CIDPlaceholder, c.cid, -1)
+}
+
+func (c *wsConn) SendConnectionStatus(status string) {
+	c.callNoReply("example.connection", status, nil)
 }
